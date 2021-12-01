@@ -8,6 +8,10 @@
 
 .btn {
     margin-top: 20px;
-    width: 90px;
+    width: 80px;
     height: 50px;
+}
+
+.input {
+    margin-top: 20px;
 }
