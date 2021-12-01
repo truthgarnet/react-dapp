@@ -1,0 +1,13 @@
+@import '~antd/dist/antd.css';
+
+.img-coin {
+    height: 30%;
+    width: 30%;
+    padding: 5px 40px 20px 10px;
+}
+
+.btn {
+    margin-top: 20px;
+    width: 90px;
+    height: 50px;
+}
