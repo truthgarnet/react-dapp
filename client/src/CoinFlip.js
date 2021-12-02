@@ -1,9 +1,10 @@
 import React, { Component } from "react";
 import "./App.css";
 import "./css/style.css"
-import { Row, Col, Divider, Card, Radio, Button, Input } from "antd";
+import {Row, Col, Divider, Card, Radio, Button, Input, Alert, Modal, Image} from "antd";
 import ButtonGroup from "antd/lib/button/button-group";
 import getWeb3 from "./getWeb3";
+import {CoinHeads, CoinHeadsI, CoinTails, CoinTailsI, CoinUnknown} from './images';
 import CoinToFlip from './contracts/CoinToFlip.json';
 
 class CoinFlip extends Component {
@@ -26,22 +27,16 @@ class CoinFlip extends Component {
 
     constructor(props) {
         super(props);
-
-        this.handleClickCoin = this.handleClickCoin.bind(this);
     }
 
     //Coin Select
-    handleClickCoin(e) {
-        if (this.state.checked === 0) {
-            if (e.target.id === 'Heads') {
-                this.setState({ checked: 2 });
-            } else if (e.target.id === 'Tails') {
-                this.setState({ checked: 1 });
-            }
-        } else {
-            this.setState({ checked: 0 });
+    handleClickCoin = (e) => {
+        if (e.target.id === "Heads") {
+            this.setState({checked: 2});
+        } else if (e.target.id === "Tails") {
+            this.setState({checked: 1});
         }
-    }
+    };
 
     handleClickFlip = async() => {
         const {accounts, contract} = this.state;
@@ -56,12 +51,15 @@ class CoinFlip extends Component {
         this.setState({pending:true});
 
         try{
-            await contract.methods.revealResult()
+            await contract.methods.revealResult().send({from:accounts[0]});
+
+            this.saveBetStatus("");
+            this.setState({pending: false, show: {flag: false, msg: ''}});
         }catch (error) {
             console.log(error.message);
             this.setState({pending: false});
         }
-    }
+    };
 
     handleClickBet = async () => {
         const {web3, accounts, contract} = this.state;
@@ -76,6 +74,7 @@ class CoinFlip extends Component {
 
         if(this.state.value <= 0 || this.state.checked === 0) {
             this.setState({show: {flag: true, msg: 'You should bet bigger than 0.01Eth'}});
+            console.log(this.state.show);
         } else {//reset
             this.setState({pending: true, show: {flag: false, msg: ''}, reveal: 0, reward: 0});
             try{
@@ -105,7 +104,8 @@ class CoinFlip extends Component {
         let bBet = false;
         if(localStorage.getItem("txHash") !== "") {
             this.setState({pending: false});
-            this.setState({show: {flag: true, msg: "You have already bet!"}});
+            this.setState({show: {flag: true, msg: 'You have already bet!'}});
+            console.log(this.state.show);
             bBet = true;
         }
         return bBet;
@@ -115,7 +115,7 @@ class CoinFlip extends Component {
         this.setState({value: 0, checked: 0, reveal: 0, reward: 0});
 
         this.saveBetStatus("");
-        this.inputEth.value = '';
+        this.state.value = 0;
     }
 
     handleValChange = (e) => {
@@ -150,7 +150,7 @@ class CoinFlip extends Component {
 
     watchEvent = (event) => {
         const {web3} = this.state;
-        const reveal = parseInt(event.returnValues.amount.toString(), 'ether');
+        const reveal = parseInt(event.returnValues.reveal);
         const reward = web3.utils.fromWei(event.returnValues.amount.toString(), 'ether');
         this.setState({reveal, reward});
     };
@@ -169,7 +169,7 @@ class CoinFlip extends Component {
             );
             instance.events.Reveal()
                 .on('message', (event) => this.watchEvent(event))
-                .on('error', (error) => console.log(error))
+                .on('error', (error) => console.log(error));
 
             this.setState({web3, accounts, contract: instance}, this.getHouseBalance);
         } catch (error) {
@@ -180,9 +180,13 @@ class CoinFlip extends Component {
 
         render() {
 
-        let coin_h = "./images/coin-h.png";
-        let coin_t = "./images/coin-t.png";
-        let houseBalance = "Balance: " + (this.state.houseBalance);
+            let coin_h = CoinHeadsI;
+            let coin_t = CoinTailsI;
+            if (this.state.checked === 2) {
+                coin_h = CoinHeads;
+            } else if (this.state.checked === 1) {
+                coin_t = CoinTails;
+            }
 
         return (
 
@@ -192,7 +196,7 @@ class CoinFlip extends Component {
                 <Divider orientation="left"></Divider>
                 <Row gutter={[16, 24]}>
                     <Col className="gutter-row" span={12}>
-                        <Card title={houseBalance}>
+                        <Card title={this.houseBalance}>
                             <div>
                                 <div>
                                     <img src={coin_h} id="Heads" onClick={this.handleClickCoin} className="img-coin" />
@@ -203,12 +207,7 @@ class CoinFlip extends Component {
                     </Col>
 
                     <Col className="gutter-row" span={12}>
-                        <Card title="Coin Reveal">
-                            <div>
-                                <img src="./images/coin-unknown.png" className="img-coin" />
-                            </div>
-                        </Card>
-
+                        <Reveal reveal={this.state.reveal} reward={this.state.reward}/>
                     </Col>
                     <Col className="gutter-row" span={12}>
                         <Card title="Your Bet">
@@ -220,20 +219,21 @@ class CoinFlip extends Component {
                                     </Radio.Group>
                                 </div>
                                 <div>
-                                    <Input placeholder="Ether" className="input" onChange={this.handleValChange}/>
+                                    <Input type={"text"} placeholder="Ether" className="input" onChange={this.handleValChange} value={this.state.value}/>
+                                    <AlertMsg show={this.state.show}/>
                                 </div>
                                 <div>
                                     <ButtonGroup>
                                         <Button type="primary" className="btn" onClick={this.handleClickBet}>
                                             Bet
                                         </Button>
-                                        <Button type="primary" className="btn">
+                                        <Button type="primary" className="btn" onClick={this.handleClickFlip}>
                                             Flip!
                                         </Button>
-                                        <Button type="primary" className="btn">
-                                            Cancle
+                                        <Button type="primary" className="btn" onClick={this.handleRefund}>
+                                            Refund
                                         </Button>
-                                        <Button type="primary" className="btn">
+                                        <Button type="primary" className="btn" onClick={this.handleClickReset}>
                                             Reset
                                         </Button>
                                     </ButtonGroup>
@@ -256,5 +256,41 @@ class CoinFlip extends Component {
         )
     }
 }
+
+function AlertMsg(props) {
+    if(props.show.flag) {
+        return (
+            <Alert bsStyle="danger" message={props.show.msg} type="error"/>
+        )
+    }
+    return <br/>
+}
+
+function Reveal(props) {
+
+    let coinImg = CoinUnknown;
+    if(props.reveal === 2) {
+        coinImg = CoinTails;
+    } else if (props.reveal === 1) {
+        coinImg = CoinHeads;
+    }
+
+    let coin = <Image src={coinImg} className="img-coin" />
+
+    return (
+        <Card title="Coin Reveal">
+            <div>
+                {coin}
+                Ξ {props.reward}{props.reward>0?" YOU WIN!":null}
+            </div>
+        </Card>
+    );
+}
+
+const PendingModal = ({children}) => (
+    <Modal>
+        <div className={"toast"}>{children}</div>
+    </Modal>
+);
 
 export default CoinFlip;
